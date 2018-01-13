@@ -18,6 +18,8 @@ import (
 var (
 	proxy  *httputil.ReverseProxy
 	JobQueue chan Job
+	MaxQue int
+	MaxWorker int
 )
 
 type Job struct {
@@ -75,8 +77,10 @@ func (t *transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 		}
 	}
 
-	p := &Payload{req.RequestURI,&reqHMap,b2,b}
-	p.WriteToKafka()
+	p := Payload{req.RequestURI,&reqHMap,b2,b}
+	//p.WriteToKafka()
+	work := Job{Payload:p}
+	JobQueue <- work
 	body := ioutil.NopCloser(bytes.NewReader(b))
 	resp.Body = body
 	return resp, nil
@@ -157,6 +161,11 @@ func main(){
 		Scheme: "http",
 		Host:   viper.GetString("host"),
 	})
+	MaxQue = 6
+	MaxWorker = 9
+	JobQueue = make(chan Job, MaxQue)
+	dispatcher := NewDispatcher(MaxWorker)
+	dispatcher.Run()
 
 	proxy.Transport = &transport{http.DefaultTransport}
 	handler2 := Logger(http.HandlerFunc(handle))
