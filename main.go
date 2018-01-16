@@ -39,6 +39,7 @@ type Payload struct {
 	ReqH *map[string]interface{}
 	Req []byte
 	Resp []byte
+	StatusCode int
 }
 
 type transport struct {
@@ -60,14 +61,10 @@ func (t *transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 	}
 	//fmt.Printf("---> reqUri %s",req.RequestURI)
 	reqHMap := make(map[string]interface{})
-	for _, str := range req.Header{
-		//fmt.Printf("-->h %s", str)
-		tmp := strings.Split(str[0], " ")
-		if len(tmp)==2 {
-			reqHMap[strings.Trim(tmp[0], " ")] = strings.Trim(tmp[1], " ")
-		}
-
+	for key, value := range req.Header{
+		reqHMap[key] = value
 	}
+
 	var b2 []byte
 	var er1 error
 	if req.Body!=nil{
@@ -76,8 +73,8 @@ func (t *transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 			fmt.Printf("%s", er1)
 		}
 	}
-
-	p := Payload{req.RequestURI,&reqHMap,b2,b}
+	stcode := resp.StatusCode
+	p := Payload{req.RequestURI,&reqHMap,b2,b,stcode}
 	//p.WriteToKafka()
 	work := Job{Payload:p}
 	JobQueue <- work
@@ -109,6 +106,7 @@ func (p *Payload) WriteToKafka(){
 	totalJsonMap["reqHMap"] = p.ReqH
 	totalJsonMap["res"] = string(p.Resp)
 	totalJsonMap["req"] = string(p.Req)
+	totalJsonMap["statuscode"] = p.StatusCode
 	data1, _ := json.Marshal(totalJsonMap)
 
 	brokerList := strings.Split(viper.GetString("brokers"), ",")
